@@ -9,5 +9,4 @@ class WalletRpcClient(object):
 
 @pytest.fixture(scope="module")
 def wallet_rpc_client():
-    async_mock = AsyncMock(WalletRpcClient)
-    return async_mock
+    return AsyncMock(WalletRpcClient)

@@ -50,10 +50,14 @@ def left_join_cooldown(
             sql.append(('joined_last_at', now))
 
     elif not is_pool_member and was_pool_member:
-        sql.append(('left_last_at', now))
-        sql.append(('left_at', left_last_at))
-        sql.append(('last_block_timestamp', None))
-        sql.append(('last_block_etw', None))
+        sql.extend(
+            (
+                ('left_last_at', now),
+                ('left_at', left_last_at),
+                ('last_block_timestamp', None),
+                ('last_block_etw', None),
+            )
+        )
 
     return sql
 
@@ -280,15 +284,12 @@ class PgsqlPoolStore(object):
             ")"
         )
 
-        all_phs: Set[bytes32] = set()
-        for row in rows:
-            all_phs.add(bytes32(bytes.fromhex(row[0])))
-        return all_phs
+        return {bytes32(bytes.fromhex(row[0])) for row in rows}
 
     async def get_farmer_records_for_p2_singleton_phs(self, puzzle_hashes: Set[bytes32]) -> List[FarmerRecord]:
-        if len(puzzle_hashes) == 0:
+        if not puzzle_hashes:
             return []
-        puzzle_hashes_db = tuple([ph.hex() for ph in list(puzzle_hashes)])
+        puzzle_hashes_db = tuple(ph.hex() for ph in list(puzzle_hashes))
         rows = await self._execute(
             f'SELECT {", ".join((FarmerRecord.__annotations__.keys()))} from farmer WHERE p2_singleton_puzzle_hash in ({"%s," * (len(puzzle_hashes_db) - 1)}%s) ',
             puzzle_hashes_db,
@@ -313,16 +314,10 @@ class PgsqlPoolStore(object):
                     'estimated_size': row[4],
                 }
 
-        ret: List[dict] = []
-        for ph, v in accumulated.items():
-            ret.append(dict(payout_instructions=ph, **v))
-        return ret
+        return [dict(payout_instructions=ph, **v) for ph, v in accumulated.items()]
 
     async def get_launcher_id_payout_data(self, reward_system) -> dict:
-        if reward_system == 'PPLNS':
-            field = 'points_pplns'
-        else:
-            field = 'points'
+        field = 'points_pplns' if reward_system == 'PPLNS' else 'points'
         return {
             i[0]: {
                 'payout_instructions': bytes32(bytes.fromhex(i[1])),
@@ -420,16 +415,11 @@ class PgsqlPoolStore(object):
         if launcher_id:
             args.append(launcher_id)
         rows = await self._execute(
-            "SELECT p.launcher_id, p.timestamp, p.difficulty FROM partial p "
-            "JOIN farmer f ON p.launcher_id = f.launcher_id "
-            "WHERE p.timestamp >= %s AND p.error IS NULL{} AND f.is_pool_member = true ORDER BY p.timestamp ASC".format(' AND f.launcher_id = %s' if launcher_id else ''),
+            f"SELECT p.launcher_id, p.timestamp, p.difficulty FROM partial p JOIN farmer f ON p.launcher_id = f.launcher_id WHERE p.timestamp >= %s AND p.error IS NULL{' AND f.launcher_id = %s' if launcher_id else ''} AND f.is_pool_member = true ORDER BY p.timestamp ASC",
             args,
         )
-        ret: List[Tuple[str, int, int]] = [
-            (launcher_id, timestamp, difficulty)
-            for launcher_id, timestamp, difficulty in rows
-        ]
-        return ret
+
+        return list(rows)
 
     async def get_points_per_pool_host(self, start_time) -> Dict[str, int]:
         # FIXME: Verify query speed, check index on timestamp
@@ -601,10 +591,7 @@ class PgsqlPoolStore(object):
                     "ORDER BY joined_last_at NULLS FIRST",
                     (i["puzzle_hash"].hex(),),
                 )
-                if rv and rv[0]:
-                    farmer = "'" + rv[0][0] + "'"
-                else:
-                    farmer = 'NULL'
+                farmer = "'" + rv[0][0] + "'" if rv and rv[0] else 'NULL'
                 rv = await self._execute(
                     "INSERT INTO payout_address "
                     "(payout_id, payout_round, fee, fee_amount, tx_fee, puzzle_hash, pool_puzzle_hash, launcher_id, amount, referral_id, referral_amount, transaction_id) "
@@ -679,9 +666,11 @@ class PgsqlPoolStore(object):
             # so we need to make sure its updated correctly to the latest one when adding the
             # transaction.
             await self._execute(
-                'UPDATE payout_address SET transaction_id = %s, puzzle_hash = %s'
-                ' WHERE id IN ({})'.format(', '.join(ids)),
-                (tx_id, ph.hex(),),
+                f"UPDATE payout_address SET transaction_id = %s, puzzle_hash = %s WHERE id IN ({', '.join(ids)})",
+                (
+                    tx_id,
+                    ph.hex(),
+                ),
             )
 
     async def get_pending_payments_coins(self, pool_puzzle_hash: bytes32):
@@ -701,9 +690,7 @@ class PgsqlPoolStore(object):
         return {
             bytes32(bytes.fromhex(i[0]))
             for i in await self._execute(
-                'SELECT name FROM coin_reward WHERE payout_id IN ({})'.format(
-                    ', '.join([str(j) for j in payout_ids])
-                ),
+                f"SELECT name FROM coin_reward WHERE payout_id IN ({', '.join([str(j) for j in payout_ids])})"
             )
         }
 
@@ -769,8 +756,7 @@ class PgsqlPoolStore(object):
         )
 
     async def get_last_singletons(self) -> List[str]:
-        # Get the last 10 singletons of each launcher
-        singletons = [
+        return [
             i[0] for i in
             await self._execute(
                 'WITH c AS ('
@@ -780,7 +766,6 @@ class PgsqlPoolStore(object):
                 ') SELECT singleton_name FROM c WHERE singleton_rank <= 10'
             )
         ]
-        return singletons
 
     async def set_pool_size(self, size: int) -> None:
         await self._execute(
@@ -891,7 +876,7 @@ class PgsqlPoolStore(object):
     async def update_notifications_last_sent(
         self, launcher_id: str, name: str, when: Optional[datetime.datetime],
     ):
-        assert name in ('size_drop', )
+        assert name in {'size_drop'}
         await self._execute(
             f'UPDATE notification SET {name}_last_sent = %s'
             ' WHERE launcher_id = %s',

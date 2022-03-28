@@ -44,12 +44,14 @@ def allow_cors(response: web.Response) -> web.Response:
 
 
 def check_authentication_token(launcher_id: bytes32, token: uint64, timeout: uint8) -> Optional[web.Response]:
-    if not validate_authentication_token(token, timeout):
-        return error_response(
+    return (
+        None
+        if validate_authentication_token(token, timeout)
+        else error_response(
             PoolErrorCode.INVALID_AUTHENTICATION_TOKEN,
             f"authentication_token {token} invalid for farmer {launcher_id.hex()}.",
         )
-    return None
+    )
 
 
 class PoolServer:

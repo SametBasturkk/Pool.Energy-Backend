@@ -47,8 +47,7 @@ class RequestMetadata:
 
     def get_host(self) -> Optional[str]:
         try:
-            forwarded = self.headers.get('x-forwarded-host')
-            if forwarded:
+            if forwarded := self.headers.get('x-forwarded-host'):
                 return forwarded
             parse = urlparse(self.url)
             return parse.hostname
@@ -162,11 +161,7 @@ async def create_transaction(
 
         total_additions = sum(a['amount'] for a in additions)
         total_coins = sum(int(c.amount) for c in list(unspent_coins) + list(non_ph_coins))
-        if total_additions + fee <= total_coins:
-            transaction = await wallet['rpc_client'].create_signed_transaction(
-                additions, coins=list(unspent_coins) + list(non_ph_coins), fee=fee
-            )
-        else:
+        if total_additions + fee > total_coins:
             # We are short of coins to make the payment
             logger.info('Getting extra non ph coins')
             balance = await wallet['rpc_client'].get_wallet_balance(wallet['id'])
@@ -186,9 +181,9 @@ async def create_transaction(
                         break
             else:
                 raise RuntimeError('Not enough non puzzle hash coins for payment')
-            transaction = await wallet['rpc_client'].create_signed_transaction(
-                additions, coins=list(unspent_coins) + list(non_ph_coins), fee=fee
-            )
+        transaction = await wallet['rpc_client'].create_signed_transaction(
+            additions, coins=list(unspent_coins) + list(non_ph_coins), fee=fee
+        )
     return transaction
 
 
@@ -231,8 +226,7 @@ def size_discount(launcher_size: int, size_discount: Dict) -> D:
     for size_tb, discount in reversed(sorted(size_discount.items())):
         if launcher_size_tb >= size_tb:
             return D(discount)
-    else:
-        return D('0')
+    return D('0')
 
 
 def calculate_effort(
@@ -243,17 +237,10 @@ def calculate_effort(
 ) -> int:
 
     # Effective ETW is the mean between last ETW and current ETW
-    if last_etw != -1:
-        effective_etw = (last_etw + now_etw) / 2
-    else:
-        effective_etw = now_etw
-
+    effective_etw = (last_etw + now_etw) / 2 if last_etw != -1 else now_etw
     time_since_last = now_timestamp - last_timestamp
-    # If time is negative means we are adding a block that was won some time ago
-    # e.g. farmer that wasn't sending partials to the pool
-    if time_since_last < 0:
-        effort = 0
-    else:
-        effort = int((time_since_last / effective_etw) * 100)
-
-    return effort
+    return (
+        0
+        if time_since_last < 0
+        else int((time_since_last / effective_etw) * 100)
+    )

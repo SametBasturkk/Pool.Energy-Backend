@@ -16,8 +16,8 @@ ssi = 37600000000
 
 def do_simulation(days: int, diff: int, k: int, num: int):
     successes = 0
-    for i in range(int(9216 * days)):
-        for j in range(num):
+    for _ in range(int(9216 * days)):
+        for _ in range(num):
             # Plot filter
             if random.random() < (1.0 / 512.0):
                 s = calculate_iterations_quality(2 ** 67, token_bytes(32), k, diff, token_bytes(32)) < (ssi // 64)

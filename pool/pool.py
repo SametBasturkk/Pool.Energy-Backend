@@ -240,9 +240,7 @@ class Pool:
         self.xchprice_loop_task: Optional[asyncio.Task] = None
 
         self.node_rpc_client: Optional[FullNodeRpcClient] = None
-        self.nodes: List[Dict] = []
-        for node in pool_config['nodes']:
-            self.nodes.append({
+        self.nodes: List[Dict] = [{
                 'hostname': node['hostname'],
                 'rpc_port': node.get('rpc_port') or 8555,
                 'ssl_dir': node.get('ssl_dir'),
@@ -251,8 +249,7 @@ class Pool:
                 'blockchain_state': {'peak': None},
                 'blockchain_mempool_full_pct': 0,
 
-            })
-
+            } for node in pool_config['nodes']]
         # Keeps track of the latest state of our node
         self.blockchain_state: Dict = {"peak": None}
         self.blockchain_mempool_full_pct: int = 0
@@ -418,7 +415,6 @@ class Pool:
         def dump(item):
             if isinstance(item, Streamable):
                 return item.to_json_dict()
-                return [dump(i) for i in item]
             elif isinstance(item, (list, tuple)):
                 return [dump(i) for i in item]
             elif isinstance(item, dict):
@@ -585,8 +581,11 @@ class Pool:
     async def get_etw(self, size):
         blockchain_space = self.blockchain_state['space']
         proportion = size / blockchain_space if blockchain_space else -1
-        etw = int(await self.get_average_block_time() / proportion) if proportion else -1
-        return etw
+        return (
+            int(await self.get_average_block_time() / proportion)
+            if proportion
+            else -1
+        )
 
     @task_exception
     async def collect_pool_rewards_loop(self):

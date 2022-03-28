@@ -38,9 +38,13 @@ class LastSpendCoinNotFound(Exception):
 
 
 async def get_coin_spend(node_rpc_client: FullNodeRpcClient, coin_record: CoinRecord) -> Optional[CoinSpend]:
-    if not coin_record.spent:
-        return None
-    return await node_rpc_client.get_puzzle_and_solution(coin_record.coin.name(), coin_record.spent_block_index)
+    return (
+        await node_rpc_client.get_puzzle_and_solution(
+            coin_record.coin.name(), coin_record.spent_block_index
+        )
+        if coin_record.spent
+        else None
+    )
 
 
 def validate_puzzle_hash(
@@ -269,8 +273,7 @@ async def find_last_reward_from_launcher(
     last_reward = None
     while end > 0:
         start = end - 50000
-        if start < 0:
-            start = 0
+        start = max(start, 0)
         coin_records = await node_rpc_client.get_coin_records_by_puzzle_hash(
             farmer.p2_singleton_puzzle_hash,
             include_spent_coins=True,

@@ -38,7 +38,7 @@ async def main(payments):
                 })
                 smtp.send_message(msg)
         except Exception as e:
-            print('Failed to send email to {}: {}'.format(launcher_id, str(e)))
+            print(f'Failed to send email to {launcher_id}: {str(e)}')
 
     await store.close()
 

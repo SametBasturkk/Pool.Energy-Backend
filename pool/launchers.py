@@ -40,11 +40,12 @@ class Launchers(object):
                         launcher_id, raise_exc=True,
                     )
                 except LastSpendCoinNotFound as e:
-                    is_member = False
-                    for wallet in self.pool.wallets:
-                        if wallet['puzzle_hash'] == e.last_not_none_state.target_puzzle_hash:
-                            is_member = True
-                            break
+                    is_member = any(
+                        wallet['puzzle_hash']
+                        == e.last_not_none_state.target_puzzle_hash
+                        for wallet in self.pool.wallets
+                    )
+
                 else:
                     if singleton_state_tuple is None:
                         continue

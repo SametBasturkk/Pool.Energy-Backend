@@ -99,6 +99,5 @@ class InfluxdbStore(object):
         )
         rv = []
         for table in q:
-            for r in table.records:
-                rv.append((r.get_time(), r.get_value()))
+            rv.extend((r.get_time(), r.get_value()) for r in table.records)
         return rv

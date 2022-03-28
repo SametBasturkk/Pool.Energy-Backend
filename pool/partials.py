@@ -42,9 +42,7 @@ class PartialsInterval(object):
         self.partials.sort()
 
     def changed_recently(self, time):
-        if self.last_update > time - 60 * 10:
-            return True
-        return False
+        return self.last_update > time - 60 * 10
 
     def clear(self):
         self.partials = []
@@ -223,7 +221,7 @@ class Partials(object):
             # DIFFICULTY_CONSTANT_FACTOR
             # mainnet = 2 ** 67
             # testnet = 10052721566054
-            estimated_size = int(estimated_size / 14680000)
+            estimated_size //= 14680000
         return estimated_size
 
     async def scrub(self):
@@ -341,15 +339,21 @@ class Partials(object):
                             continue
                         if self.config['full_node']['selected_network'] == 'mainnet':
                             # Farmers with low space can take up more hours without partials
-                            if rec.estimated_size < 429496729600:  # 400GiB
-                                if last_seen > six_hours_ago:
-                                    continue
-                            if rec.estimated_size < 966367641600:  # 900GiB
-                                if last_seen > three_hours_ago:
-                                    continue
-                            if rec.estimated_size < 1932735283200:  # 1800GiB
-                                if last_seen > two_hours_ago:
-                                    continue
+                            if (
+                                rec.estimated_size < 429496729600
+                                and last_seen > six_hours_ago
+                            ):
+                                continue
+                            if (
+                                rec.estimated_size < 966367641600
+                                and last_seen > three_hours_ago
+                            ):
+                                continue
+                            if (
+                                rec.estimated_size < 1932735283200
+                                and last_seen > two_hours_ago
+                            ):
+                                continue
                         farmer_records[launcher_id] = rec
 
                         if rec.is_pool_member:

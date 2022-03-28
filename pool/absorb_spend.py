@@ -118,16 +118,7 @@ async def spend_with_fee(
             f'Selected fee coin lower than the spend fee ({fee} > {spend_coin.amount})!'
         )
 
-    if not spend_reward:
-        transaction = await wallet['rpc_client'].create_signed_transaction(
-            additions=[{'puzzle_hash': wallet['puzzle_hash'], 'amount': 0}],
-            coins=[spend_coin],
-            coin_announcements=[Announcement(p2_coin.name(), b"$")],
-            fee=uint64(fee),
-        )
-        used_fee_coins.append(spend_coin.name())
-        return SpendBundle.aggregate([original_sb, transaction.spend_bundle])
-    else:
+    if spend_reward:
         return await create_spendbundle_with_fee(
             constants,
             private_key,
@@ -138,6 +129,14 @@ async def spend_with_fee(
             p2_coin,
             fee,
         )
+    transaction = await wallet['rpc_client'].create_signed_transaction(
+        additions=[{'puzzle_hash': wallet['puzzle_hash'], 'amount': 0}],
+        coins=[spend_coin],
+        coin_announcements=[Announcement(p2_coin.name(), b"$")],
+        fee=uint64(fee),
+    )
+    used_fee_coins.append(spend_coin.name())
+    return SpendBundle.aggregate([original_sb, transaction.spend_bundle])
 
 
 async def create_spendbundle_with_fee(constants, private_key, puzzle_hash, puzzle, spends, spend_coin, p2_coin, fee):
@@ -146,10 +145,11 @@ async def create_spendbundle_with_fee(constants, private_key, puzzle_hash, puzzl
         'amount': spend_coin.amount - fee,
     }]
     message_list = [spend_coin.name()]
-    for i in primaries:
-        message_list.append(
-            Coin(spend_coin.name(), i['puzzlehash'], i['amount']).name()
-        )
+    message_list.extend(
+        Coin(spend_coin.name(), i['puzzlehash'], i['amount']).name()
+        for i in primaries
+    )
+
     message: bytes32 = std_hash(b"".join(message_list))
 
     # Hack to use Wallet implementation of make_solution
